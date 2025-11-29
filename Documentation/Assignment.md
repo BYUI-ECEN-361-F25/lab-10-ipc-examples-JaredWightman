@@ -1,5 +1,5 @@
 # ECEN-361 Lab-10: IPC-Examples
-     Student Name:  ___________________________________
+     Student Name:  Jared Wightman
 
 ## Introduction and Objectives of the Lab
 
@@ -79,15 +79,16 @@ debounce wait, that then starts the task(s):
 Now make sure to write the code inside of the Semaphore_Toggle_Task function that uses the provided semaphore "button_1_semaphore" to toggle LED_D4
 
 <br>
-1. How did your task ‘wait’ for the debounced button? <br>
-<mark>_______________________________________________________ </mark>
+
+1.) How did your task ‘wait’ for the debounced button? <br>
+<mark>Indefinitely, used osWaitForever in osSemaphoreAcquire() </mark>
 <br>
 <br><br>
 
 2.)	How long is the time between the button interrupt coming in and it being enabled again? <br>
-<mark>_______________________________________________________ </mark>
-><br>
-> <br>
+<mark>30 ms, going off osDelay() </mark>
+
+<br>
 
 >**Second Task Creation**<br>
 Now create a second task (semaphore_Toggle_D3) -- <p>
@@ -96,11 +97,11 @@ Now create a second task (semaphore_Toggle_D3) -- <p>
 
 
 3.)	Do both of (D4 and D3) toggle with a single button press?  Describe the behavior?  <br>
-<mark>_________________________________________________________________________________<br><br>
+<mark>They take turns toggling, so to toggle both you need 2 presses<br><br>
 
 4.)	Now change one of the priorities of these two tasks, re-compile,  and re-run.
-How has the behavior changed?
-<mark>_________________________________________________________________________________<br><br>
+How has the behavior changed? <br>
+<mark>It toggles the button with higher priority and ignores the one with lower<br><br>
 
 
 ## Part 2: Mutexes
@@ -151,21 +152,21 @@ current count. The first two processes are done for you "Mutex_CountDownTask" an
 ```
 >
 ><br>
->7.)	Comment on the Up/Down/ ”—” display that you see.  <br><br>
-><mark>___________________________________________________________________________________________________________<br><br><p>
+7.)	Comment on the Up/Down/ ”—” display that you see.  <br><br>
+><mark>The number is flickering between a number and dashes really fast<br><br><p>
 
 
->8.)	Is there a ‘priority’ associated with the Mutex?  If so, how can it be changed?
+8.)	Is there a ‘priority’ associated with the Mutex?  If so, how can it be changed?
 ><br>  
-><mark>___________________________________________________________________________________________________________<br><br>
+><mark>Kind of, the "priority" of the mutex itself is determined by what tasks are calling the mutex. So if a mutex needs high priority, then all of its tasks need high priority. Priorities within the tasks accessing the mutex are determined individually and can be modified by the mutex with priority inheritance to prevent blocking of higher priorities.<br><br>
 <p>
 
 ><br>
->9.)	Button_3 resets the mutex-protected global variable to “50.”  It too, has to wait for the mutex to be granted.<br>
+9.)	Button_3 resets the mutex-protected global variable to “50.”  It too, has to wait for the mutex to be granted.<br>
 
 >  Change the priority of the Reset to be osPriorityIdle.  This is the lowest priority available. Note that you will not find this priority type listed in the .ioc configuration, as it is intended to be used for idle threads. This priority must be manually set in the code.<br>
 ><br> Did you see any effect on the ability of Button_3 to reset the count?<br><br>
-><mark>___________________________________________________________________________________________________________<br><br>
+><mark>Yes, but not very noticeable. Since the other tasks wait after giving up the mutex, there is enough room to where there is not priority conflict for the reset.<br><br>
 >
 ---
 <!--------------------------------------------------------------------------------->
@@ -196,12 +197,12 @@ display digit.
 >
 >10.) This timer was created via the GUI  (.IOC file).  It’s type is *“osTimerPeriodic”* which means it repeats over and over.<br><br>
 What other options can a Software Timer take to change its Type and operation? <br>
-><mark>___________________________________________________________________________________________________________<br><br>
+><mark>It can be run once or continually, and the routine can be make weak (overwriteable) or external (defined by user externally rather than by drivers)<br><br>
 
 >11).	The debounce for the switches here used an osDelay() call (non-blocking).  Is there any advantage to using a SWTimer here instead?<br>
 > Explain why or why not?
 >
-><mark>___________________________________________________________________________________________________________<br><br>
+><mark>A software timer might be helpful if very precise timing is needed for the debounce. osDelay() doesn't block other tasks, but it does block the current task and if the CPU is being used by something else after the delay is up then it might block the calling task for longer than specified. It isn't necessary since ultra-precise timing isn't required, but it is an option.<br><br>
 
 
 <!--------------------------------------------------------------------------------->
@@ -211,7 +212,7 @@ What other options can a Software Timer take to change its Type and operation? <
 >1.	The Seven-Seg Display is currently refreshed with a hardware (TIM17) timer.  Make this more thread-safe by changing the refresh as a process that is based off a S/W timer.
 >
 >Write about how you did it, and what the slowest period could be to keep the persistence looking good:
-><mark>___________________________________________________________________________________________________________<br><br>
+><mark>I removed the display function call from the hardware ISR, made a new software timer (continuous), manually started it at the beginning, and called the display function in the callback function. The slowest period that looks normal to me is 5 ms.<br><br>
 
 >2.	We only used a binary semaphore in this lab for the switch presses.  Change it so that presses are accumulated through a counting semaphore and then handled as they are taken off.<br><br>
 >Describe any issues with this approach

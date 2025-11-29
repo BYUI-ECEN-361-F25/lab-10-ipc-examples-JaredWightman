@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file           : main.c
-  * @brief          : ECEN-361-Lab-09
+  * @brief          : ECEN-361-Lab-10
   * IPC examples
   *
   * BYU-Idaho
@@ -106,10 +106,36 @@ const osThreadAttr_t DebounceTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for SemaphoreToggle */
+osThreadId_t SemaphoreToggleHandle;
+const osThreadAttr_t SemaphoreToggle_attributes = {
+  .name = "SemaphoreToggle",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Semaphore_Toggl */
+osThreadId_t Semaphore_TogglHandle;
+const osThreadAttr_t Semaphore_Toggl_attributes = {
+  .name = "Semaphore_Toggl",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal7,
+};
+/* Definitions for Reset_MutexCoun */
+osThreadId_t Reset_MutexCounHandle;
+const osThreadAttr_t Reset_MutexCoun_attributes = {
+  .name = "Reset_MutexCoun",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
 /* Definitions for SW_Timer_7Seg */
 osTimerId_t SW_Timer_7SegHandle;
 const osTimerAttr_t SW_Timer_7Seg_attributes = {
   .name = "SW_Timer_7Seg"
+};
+/* Definitions for SW_Timer_Refresh_Display */
+osTimerId_t SW_Timer_Refresh_DisplayHandle;
+const osTimerAttr_t SW_Timer_Refresh_Display_attributes = {
+  .name = "SW_Timer_Refresh_Display"
 };
 /* Definitions for UpDownMutex */
 osMutexId_t UpDownMutexHandle;
@@ -165,7 +191,11 @@ void Mutex_CountDownTask(void *argument);
 void UpdateGlobDisplayProcess(void *argument);
 void ResetGlobalTask(void *argument);
 void StartDebounce(void *argument);
+void Semaphore_Toggle_Task(void *argument);
+void Semaphore_Toggle_D3_Task(void *argument);
+void Reset_MutexCount_Task(void *argument);
 void SW_Timer_Countdown(void *argument);
+void SW_Timer_Display_Execute(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -248,6 +278,9 @@ int main(void)
   /* creation of SW_Timer_7Seg */
   SW_Timer_7SegHandle = osTimerNew(SW_Timer_Countdown, osTimerPeriodic, NULL, &SW_Timer_7Seg_attributes);
 
+  /* creation of SW_Timer_Refresh_Display */
+  SW_Timer_Refresh_DisplayHandle = osTimerNew(SW_Timer_Display_Execute, osTimerPeriodic, NULL, &SW_Timer_Refresh_Display_attributes);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
@@ -281,12 +314,27 @@ int main(void)
   /* creation of DebounceTask */
   DebounceTaskHandle = osThreadNew(StartDebounce, NULL, &DebounceTask_attributes);
 
+  /* creation of SemaphoreToggle */
+  SemaphoreToggleHandle = osThreadNew(Semaphore_Toggle_Task, NULL, &SemaphoreToggle_attributes);
+
+  /* creation of Semaphore_Toggl */
+  Semaphore_TogglHandle = osThreadNew(Semaphore_Toggle_D3_Task, NULL, &Semaphore_Toggl_attributes);
+
+  /* creation of Reset_MutexCoun */
+  Reset_MutexCounHandle = osThreadNew(Reset_MutexCount_Task, NULL, &Reset_MutexCoun_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
+
+
+  osTimerStart(SW_Timer_Refresh_DisplayHandle , 5); //////////MANUAL start sw timer here
+
+
+
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -429,8 +477,8 @@ static void MX_USART2_UART_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -513,8 +561,8 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -637,7 +685,8 @@ void SW_Timer_Task(void *argument)
 	if (osTimerIsRunning(SW_Timer_7SegHandle))
 		osTimerStop(SW_Timer_7SegHandle );
 	else
-		osTimerStart(SW_Timer_7SegHandle , 200);
+		osTimerStart(SW_Timer_7SegHandle , 1000);
+
     osDelay(1);
   }
   /* USER CODE END SW_Timer_Task */
@@ -771,12 +820,75 @@ void StartDebounce(void *argument)
 		 *
 		 * */
 		 xTaskNotifyWait( 0xfffffff8, 0x7, &buttons_in, portMAX_DELAY);
-	     osDelay(30);
+	     osDelay(30); // Wait for debounce
 	     if (buttons_in & B1) { osSemaphoreRelease(Button_1_SemaphoreHandle); }
 	     if (buttons_in & B2) { osSemaphoreRelease(Button_2_SemaphoreHandle); }
 	     if (buttons_in & B3) { osSemaphoreRelease(Button_3_SemaphoreHandle); }
 	 }
   /* USER CODE END StartDebounce */
+}
+
+/* USER CODE BEGIN Header_Semaphore_Toggle_Task */
+/**
+* @brief Function implementing the SemaphoreToggle thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Semaphore_Toggle_Task */
+void Semaphore_Toggle_Task(void *argument)
+{
+  /* USER CODE BEGIN Semaphore_Toggle_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osSemaphoreAcquire(Button_1_SemaphoreHandle, osWaitForever);
+    HAL_GPIO_TogglePin(LED_D4_GPIO_Port,LED_D4_Pin);
+  }
+  /* USER CODE END Semaphore_Toggle_Task */
+}
+
+/* USER CODE BEGIN Header_Semaphore_Toggle_D3_Task */
+/**
+* @brief Function implementing the Semaphore_Toggl thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Semaphore_Toggle_D3_Task */
+void Semaphore_Toggle_D3_Task(void *argument)
+{
+  /* USER CODE BEGIN Semaphore_Toggle_D3_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+	osSemaphoreAcquire(Button_1_SemaphoreHandle, osWaitForever);
+	HAL_GPIO_TogglePin(LED_D3_GPIO_Port,LED_D3_Pin);
+  }
+  /* USER CODE END Semaphore_Toggle_D3_Task */
+}
+
+/* USER CODE BEGIN Header_Reset_MutexCount_Task */
+/**
+* @brief Function implementing the Reset_MutexCoun thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Reset_MutexCount_Task */
+void Reset_MutexCount_Task(void *argument)
+{
+  /* USER CODE BEGIN Reset_MutexCount_Task */
+  /* Infinite loop */
+    for(;;)
+        {
+        /* This doesn't change the value, it just clears the display  */
+        /* If asked to display a negative number, the function displays a "--"
+        */
+        osMutexWait(UpDownMutexHandle,osWaitForever);
+        MultiFunctionShield_Display_Two_Digits(-1);
+        osDelay(200);
+        osMutexRelease(UpDownMutexHandle);
+        osDelay(2);
+        }
+  /* USER CODE END Reset_MutexCount_Task */
 }
 
 /* SW_Timer_Countdown function */
@@ -798,6 +910,14 @@ void SW_Timer_Countdown(void *argument)
   /* USER CODE END SW_Timer_Countdown */
 }
 
+/* SW_Timer_Display_Execute function */
+void SW_Timer_Display_Execute(void *argument)
+{
+  /* USER CODE BEGIN SW_Timer_Display_Execute */
+	  MultiFunctionShield__ISRFunc();
+  /* USER CODE END SW_Timer_Display_Execute */
+}
+
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM3 interrupt took place, inside
@@ -811,13 +931,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM3) {
+  if (htim->Instance == TIM3)
+  {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
   if (htim == &htim17 )
   {
-	  MultiFunctionShield__ISRFunc();
+	  //MultiFunctionShield__ISRFunc();
   }
 
   /* USER CODE END Callback 1 */
@@ -837,8 +958,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
